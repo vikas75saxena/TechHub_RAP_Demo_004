@@ -1,0 +1,88 @@
+CLASS lhc_attendance DEFINITION INHERITING FROM cl_abap_behavior_handler.
+  PRIVATE SECTION.
+
+    METHODS fill_initial_date_time FOR DETERMINE ON MODIFY
+      IMPORTING keys FOR attendance~fill_initial_date_time.
+
+    METHODS check_entry_date FOR VALIDATE ON SAVE
+      IMPORTING keys FOR attendance~check_entry_date.
+
+    METHODS check_in_out_time FOR VALIDATE ON SAVE
+      IMPORTING keys FOR attendance~check_in_out_time.
+
+ENDCLASS.
+
+CLASS lhc_attendance IMPLEMENTATION.
+
+  METHOD fill_initial_date_time.
+      READ ENTITIES OF ZTHAC_i_contractor IN LOCAL MODE ENTITY attendance FIELDS ( EntryDate TimeIn TimeOut )
+    WITH CORRESPONDING #(  keys )
+    RESULT DATA(lt_attendance).
+    LOOP AT lt_attendance ASSIGNING FIELD-SYMBOL(<ls_attendance>).
+      CHECK <ls_attendance>-EntryDate IS INITIAL.
+      DATA(lv_assigned) = abap_true.
+      <ls_attendance>-EntryDate = cl_abap_context_info=>get_system_date( ).
+      <ls_attendance>-TimeIn = '090000'.
+      <ls_attendance>-TimeOut = '170000'.
+    ENDLOOP.
+    IF lv_assigned = abap_true.
+      MODIFY ENTITIES OF ZTHAC_i_contractor IN LOCAL MODE ENTITY attendance
+      UPDATE FROM VALUE #( FOR cntr IN lt_attendance
+                                  ( %tky = cntr-%tky
+                                    EntryDate = cntr-EntryDate
+                                    TimeIn = cntr-TimeIn
+                                    TimeOut = cntr-TimeOut
+                                    %control-EntryDate = if_abap_behv=>mk-on
+                                    %control-TimeIn = if_abap_behv=>mk-on
+                                    %control-TimeOut = if_abap_behv=>mk-on
+                                     ) ).
+  ENDIF.
+  ENDMETHOD.
+
+  METHOD check_entry_date.
+    READ ENTITIES OF ZTHAC_i_contractor IN LOCAL MODE ENTITY attendance
+    FIELDS ( ContractorKey EntryDate )
+    WITH CORRESPONDING #( keys )
+    RESULT DATA(lt_attend_dates).
+    LOOP AT lt_attend_dates ASSIGNING FIELD-SYMBOL(<ls_attend_dates>).
+       READ ENTITIES of ZTHAC_i_contractor in local mode entity contractor
+       FIELDS ( Startdate EndDate )
+       WITH VALUE #( ( ContractorKey = <ls_attend_dates>-ContractorKey ) )
+       RESULT DATA(lt_contr_dates).
+      IF ( ( (    <ls_attend_dates>-EntryDate GT lt_contr_dates[ 1 ]-EndDate  AND lt_contr_dates[ 1 ]-EndDate IS not INITIAL ) OR
+          <ls_attend_dates>-EntryDate LT lt_contr_dates[ 1 ]-StartDate )
+      AND <ls_attend_dates>-EntryDate IS NOT INITIAL ).
+        APPEND VALUE #( %key = <ls_attend_dates>-%key
+                          ) TO failed-attendance.
+        APPEND VALUE #(  %key = <ls_attend_dates>-%key
+                         %msg = new_message( id = 'ZTHAC_CONTR'
+                         severity = if_abap_behv_message=>severity-error
+                           number = '002'
+                          )
+                                )
+                                TO reported-attendance.
+      ENDIF.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD check_in_out_time.
+    READ ENTITIES OF ZTHAC_i_contractor IN LOCAL MODE ENTITY attendance
+    FIELDS ( Timein TimeOut )
+    WITH CORRESPONDING #( keys )
+    RESULT DATA(lt_attend_times).
+    LOOP AT lt_attend_times ASSIGNING FIELD-SYMBOL(<ls_attend_times>).
+     if <ls_attend_times>-TimeIn gt <ls_attend_times>-TimeOut.
+     APPEND VALUE #( %key = <ls_attend_times>-%key
+                          ) TO failed-attendance.
+        APPEND VALUE #(  %key = <ls_attend_times>-%key
+                         %msg = new_message( id = 'ZTHAC_CONTR'
+                         severity = if_abap_behv_message=>severity-error
+                           number = '003'
+                          )
+                                )
+                                TO reported-attendance.
+     endif.
+    ENDLOOP.
+  ENDMETHOD.
+
+ENDCLASS.
