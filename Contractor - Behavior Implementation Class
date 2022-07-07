@@ -1,0 +1,317 @@
+CLASS lhc_contractor DEFINITION INHERITING FROM cl_abap_behavior_handler.
+  PRIVATE SECTION.
+
+    METHODS check_dates FOR VALIDATE ON SAVE
+      IMPORTING keys FOR contractor~check_dates.
+
+    METHODS fill_contractor_id FOR DETERMINE ON MODIFY
+      IMPORTING keys FOR contractor~fill_contractor_id.
+
+    METHODS fill_end_date FOR DETERMINE ON MODIFY
+      IMPORTING keys FOR contractor~fill_end_date.
+
+    METHODS fill_initial_status FOR DETERMINE ON MODIFY
+      IMPORTING keys FOR contractor~fill_initial_status.
+
+    METHODS fill_start_date FOR DETERMINE ON MODIFY
+      IMPORTING keys FOR contractor~fill_start_date.
+
+    METHODS get_features FOR FEATURES
+      IMPORTING keys REQUEST requested_features FOR contractor RESULT result.
+
+    METHODS fill_initial_country FOR DETERMINE ON MODIFY
+      IMPORTING keys FOR contractor~fill_initial_country.
+
+    METHODS get_global_authorizations FOR GLOBAL AUTHORIZATION
+      IMPORTING REQUEST requested_authorizations FOR contractor RESULT result.
+
+    METHODS offboardCntr FOR MODIFY
+      IMPORTING keys FOR ACTION contractor~offboardCntr RESULT result.
+
+    METHODS check_names FOR VALIDATE ON SAVE
+      IMPORTING keys FOR contractor~check_names.
+
+""Methods added for unmanaged implementation
+*      METHODS lock_contractor for LOCK
+*      IMPORTING it_cntr_lock for LOCK contractor.
+*
+*      METHODS create_contractor FOR MODIFY
+*      IMPORTING it_contr_create FOR CREATE contractor.
+*
+*      METHODS update_contractor FOR MODIFY
+*      IMPORTING it_contr_update FOR UPDATE contractor.
+*
+*      METHODS delete_contractor FOR MODIFY
+*      IMPORTING it_contr_delete FOR DELETE contractor.
+*
+*      METHODS read_contractor for READ
+*      IMPORTING it_contr_read for READ contractor
+*      RESULT et_contractor.
+
+ENDCLASS.
+
+
+
+CLASS lhc_contractor IMPLEMENTATION.
+
+ METHOD get_features.
+ READ ENTITIES OF ZTHAC_I_CONTRACTOR IN LOCAL MODE
+ ENTITY contractor
+ FIELDS ( ContractorId Firstname Status VendorId LastName Country StartDate ExternalId )
+ WITH CORRESPONDING #( keys )
+ RESULT DATA(lt_status)
+ FAILED failed.
+ result = VALUE #( FOR ls_status IN lt_status
+ ( %tky = ls_status-%tky
+ %features-%action-offboardCntr = COND #( WHEN ls_status-Status = 'Off-board'
+ OR ls_status-FirstName is Initial
+ THEN
+if_abap_behv=>fc-o-disabled ELSE if_abap_behv=>fc-o-enabled )
+*%features-%action-edit = COND #( WHEN ls_status-Status = 'Off-board'
+*THEN
+*if_abap_behv=>fc-o-disabled ELSE if_abap_behv=>fc-o-enabled )
+%field-Country = COND #( WHEN ls_status-Status = 'Off-board'
+THEN if_abap_behv=>fc-f-read_only )
+%field-FirstName = COND #( WHEN ls_status-Status = 'Off-board'
+THEN if_abap_behv=>fc-f-read_only )
+%field-VendorId = COND #( WHEN ls_status-Status = 'Off-board'
+THEN if_abap_behv=>fc-f-read_only )
+%field-LastName = COND #( WHEN ls_status-Status = 'Off-board'
+THEN if_abap_behv=>fc-f-read_only )
+%field-Startdate = COND #( WHEN ls_status-Status = 'Off-board'
+THEN if_abap_behv=>fc-f-read_only )
+%field-ExternalId = COND #( WHEN ls_status-Status = 'Off-board'
+THEN if_abap_behv=>fc-f-read_only )
+%field-EndDate = COND #( WHEN ls_status-Status = 'Off-board'
+THEN if_abap_behv=>fc-f-mandatory ELSE if_abap_behv=>fc-f-read_only )
+)
+).
+ENDMETHOD.
+
+  METHOD check_dates.
+    READ ENTITIES OF ZTHAC_i_contractor IN LOCAL MODE ENTITY contractor FIELDS ( StartDate EndDate )
+    WITH CORRESPONDING #( keys )
+    RESULT DATA(lt_contr_dates).
+    LOOP AT lt_contr_dates ASSIGNING FIELD-SYMBOL(<ls_contr_dates>).
+      IF <ls_contr_dates>-StartDate GT <ls_contr_dates>-EndDate
+      AND <ls_contr_dates>-EndDate IS NOT INITIAL.
+        APPEND VALUE #( %tky = <ls_contr_dates>-%tky
+                          ) TO failed-contractor.
+        APPEND VALUE #(  %tky = <ls_contr_dates>-%tky
+                         %msg = new_message( id = 'ZTHAC_CONTR'
+                         severity = if_abap_behv_message=>severity-error
+                           number = '001'
+                          )
+                                )
+                                TO reported-contractor.
+      ENDIF.
+    ENDLOOP.
+  ENDMETHOD.
+
+  METHOD fill_contractor_id.
+    DATA: lv_contractorid TYPE zthac_contractor_id,
+          onr_ref         TYPE REF TO cx_number_ranges,
+          onrobj_ref      TYPE REF TO cx_nr_object_not_found.
+    READ ENTITIES OF ZTHAC_i_contractor IN LOCAL MODE ENTITY contractor FIELDS ( ContractorId )
+    WITH CORRESPONDING #(  keys )
+    RESULT DATA(lt_CONTR_DET_ID).
+    LOOP AT lt_contr_det_id ASSIGNING FIELD-SYMBOL(<ls_contr_det>).
+      CHECK <ls_contr_det>-ContractorId IS INITIAL.
+      DATA(lv_number_assigned) = abap_true.
+      TRY.
+          CALL METHOD cl_numberrange_runtime=>number_get
+            EXPORTING
+              nr_range_nr = '01'
+              object      = 'ZTHAC_CTR'
+            IMPORTING
+              number      = DATA(lv_number)
+              returncode  = DATA(lv_rcode).
+          IF lv_rcode IS INITIAL.
+            <ls_contr_det>-ContractorId = lv_number+10(10).
+          ENDIF.
+        CATCH cx_number_ranges INTO onr_ref.
+          APPEND VALUE #(  %key = <ls_contr_det>-%key
+                           %msg = new_message( id = 'ZTHAC_CONTR'
+                           severity = if_abap_behv_message=>severity-error
+                             number = '001'
+                            )
+                                  )
+                                  TO reported-contractor.
+      ENDTRY.
+    ENDLOOP.
+    IF lv_number_assigned = abap_true.
+      CLEAR lv_number_assigned.
+      MODIFY ENTITIES OF ZTHAC_i_contractor IN LOCAL MODE ENTITY contractor
+      UPDATE FROM VALUE #( FOR cntr IN lt_contr_det_id
+                                    (  %tky = cntr-%tky
+                                       ContractorId = cntr-ContractorId
+                                       %control-ContractorId = if_abap_behv=>mk-on )
+      ).
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD fill_end_date.
+    READ ENTITIES OF ZTHAC_i_contractor IN LOCAL MODE ENTITY contractor FIELDS ( Status EndDate )
+    WITH CORRESPONDING #( keys )
+    RESULT DATA(lt_contr_enddate).
+    LOOP AT lt_contr_enddate ASSIGNING FIELD-SYMBOL(<ls_contr_enddate>).
+      CHECK <ls_contr_enddate>-Status = 'Off-board' and <ls_contr_enddate>-EndDate is Initial.
+      DATA(lv_date_assigned) = abap_true.
+      <ls_contr_enddate>-EndDate = cl_abap_context_info=>get_system_date( ).
+    ENDLOOP.
+    IF lv_date_assigned = abap_true.
+      MODIFY ENTITIES OF ZTHAC_i_contractor IN LOCAL MODE ENTITY contractor
+      UPDATE FROM VALUE #( FOR cntr IN lt_contr_EndDate
+                                  ( %tky = cntr-%tky
+                                    EndDate = cntr-EndDate
+                                    %control-EndDate = if_abap_behv=>mk-on ) ).
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD fill_initial_status.
+    READ ENTITIES OF ZTHAC_i_contractor IN LOCAL MODE ENTITY contractor FIELDS ( Status )
+    WITH CORRESPONDING #(  keys )
+    RESULT DATA(lt_contr_status).
+    LOOP AT lt_contr_status ASSIGNING FIELD-SYMBOL(<ls_contr_det>).
+      CHECK <ls_contr_det>-Status IS INITIAL.
+      DATA(lv_status_assigned) = abap_true.
+      <ls_contr_det>-Status = 'On-board'.
+    ENDLOOP.
+    IF lv_status_assigned = abap_true.
+      MODIFY ENTITIES OF ZTHAC_i_contractor IN LOCAL MODE ENTITY contractor
+      UPDATE FROM VALUE #( FOR cntr IN lt_contr_status
+                                  ( %tky = cntr-%tky
+                                    Status = cntr-Status
+                                    %control-Status = if_abap_behv=>mk-on ) ).
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD fill_start_date.
+    READ ENTITIES OF ZTHAC_i_contractor IN LOCAL MODE ENTITY contractor FIELDS ( StartDate )
+    WITH CORRESPONDING #(  keys )
+    RESULT DATA(lt_contr_startdate).
+    LOOP AT lt_contr_startdate ASSIGNING FIELD-SYMBOL(<ls_contr_det>).
+      CHECK <ls_contr_det>-StartDate IS INITIAL.
+      DATA(lv_date_assigned) = abap_true.
+      <ls_contr_det>-StartDate = cl_abap_context_info=>get_system_date( ).
+    ENDLOOP.
+    IF lv_date_assigned = abap_true.
+      MODIFY ENTITIES OF ZTHAC_i_contractor IN LOCAL MODE ENTITY contractor
+      UPDATE FROM VALUE #( FOR cntr IN lt_contr_startdate
+                                  ( %tky = cntr-%tky
+                                    StartDate = cntr-StartDate
+                                    %control-StartDate = if_abap_behv=>mk-on ) ).
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD fill_initial_country.
+    READ ENTITIES OF ZTHAC_i_contractor IN LOCAL MODE ENTITY contractor FIELDS ( Country )
+    WITH CORRESPONDING #(  keys )
+    RESULT DATA(lt_contr_country).
+    LOOP AT lt_contr_country ASSIGNING FIELD-SYMBOL(<ls_contr_det>).
+      CHECK <ls_contr_det>-Country IS INITIAL.
+      DATA(lv_country_assigned) = abap_true.
+      <ls_contr_det>-Country = 'AU'.
+    ENDLOOP.
+    IF lv_country_assigned = abap_true.
+      MODIFY ENTITIES OF ZTHAC_i_contractor IN LOCAL MODE ENTITY contractor
+      UPDATE FROM VALUE #( FOR cntr IN lt_contr_country
+                                  ( %tky = cntr-%tky
+                                    Country = cntr-Country
+                                    %control-Country = if_abap_behv=>mk-on ) ).
+    ENDIF.
+  ENDMETHOD.
+
+  METHOD get_global_authorizations.
+    IF requested_authorizations-%create EQ if_abap_behv=>mk-on.
+      "Check authorization via authorization object
+      AUTHORITY-CHECK OBJECT 'ZDEMO_CWFM'
+      ID 'ACTVT' FIELD '03'.
+
+      " user is authorized
+      IF sy-subrc = 0.
+        result-%create = if_abap_behv=>auth-allowed.
+        " user is not authorized
+      ELSE.
+        result-%create = if_abap_behv=>auth-allowed.
+*        result-%create = if_abap_behv=>auth-unauthorized.
+*
+*        "Return custom message
+*        APPEND VALUE #(   %msg = new_message( id = 'ZDEMO_CONTR'
+*                                  severity = if_abap_behv_message=>severity-error
+*                                    number = '004' ) ) TO reported-contractor.
+      ENDIF.
+    ENDIF.
+
+  ENDMETHOD.
+
+  METHOD offboardCntr.
+ READ ENTITIES of ZTHAC_I_CONTRACTOR IN LOCAL MODE
+ ENTITY contractor fields ( Status )
+ with CORRESPONDING #( keys )
+ RESULT data(lt_status).
+ loop at lt_status ASSIGNING FIELD-SYMBOL(<ls_status>).
+  if <ls_status>-status = 'On-board'.
+  <ls_status>-status = 'Off-board'.
+  endif.
+ endloop.
+ MODIFY ENTITIES OF ZTHAC_I_CONTRACTOR IN LOCAL MODE
+ ENTITY contractor
+* UPDATE FROM VALUE #( for ls_status in lt_status ( %tky = ls_status-%tky
+*                                        Status = ls_status-Status
+*                                        %control-Status = if_abap_behv=>mk-on ) )
+UPDATE FIELDS ( Status )
+WITH CORRESPONDING #( lt_status )
+ FAILED failed
+ REPORTED reported.
+ READ ENTITIES OF ZTHAC_I_CONTRACTOR IN LOCAL MODE
+ ENTITY Contractor
+ ALL FIELDS WITH
+ CORRESPONDING #( keys )
+ RESULT DATA(lt_cntr).
+ result = VALUE #( FOR cntr IN lt_cntr ( %tky = cntr-%tky
+ %param = cntr ) ).
+
+* result = 1.
+  ENDMETHOD.
+
+  METHOD check_names.
+      READ ENTITIES OF ZTHAC_i_contractor IN LOCAL MODE ENTITY contractor FIELDS ( FirstName LastName )
+    WITH CORRESPONDING #( keys )
+    RESULT DATA(lt_contr_names).
+    LOOP AT lt_contr_names ASSIGNING FIELD-SYMBOL(<ls_contr_names>).
+      IF <ls_contr_names>-FirstName is INITIAL or
+      <ls_contr_names>-LastName is INITIAL.
+        APPEND VALUE #( %tky = <ls_contr_names>-%tky
+                          ) TO failed-contractor.
+        APPEND VALUE #(  %tky = <ls_contr_names>-%tky
+                         %msg = new_message( id = 'ZTHAC_CONTR'
+                         severity = if_abap_behv_message=>severity-error
+                           number = '005'
+                          )
+                                )
+                                TO reported-contractor.
+      ENDIF.
+    ENDLOOP.
+  ENDMETHOD.
+*  METHOD lock_contractor.
+*
+*  ENDMETHOD.
+*
+*  METHOD create_contractor.
+*
+*  ENDMETHOD.
+*
+*  METHOD update_contractor.
+*
+*  ENDMETHOD.
+*
+*  METHOD delete_contractor.
+*
+*  ENDMETHOD.
+*
+*  METHOD read_contractor.
+*
+*  ENDMETHOD.
+
+ENDCLASS.
