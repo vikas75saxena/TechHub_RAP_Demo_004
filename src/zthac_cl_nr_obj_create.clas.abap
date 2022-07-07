@@ -21,8 +21,8 @@ CLASS zthac_cl_nr_obj_create IMPLEMENTATION.
       o_nrobj_ref TYPE REF TO cx_number_ranges,
       o_nrnr_ref  TYPE REF TO cx_nr_object_not_found.
 
-    lv_object   = 'ZDEMO_CTR'.
-    lv_devclass = 'ZTECHHUB_DEMO_001'.
+    lv_object   = 'ZTHAC_CTR'.
+    lv_devclass = 'ZTECHHUB_DEMO_005'.
     lv_corrnr   = 'H01K900006'.
 *Create Object
     TRY.
