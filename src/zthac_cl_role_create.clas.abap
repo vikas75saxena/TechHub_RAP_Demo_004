@@ -1,0 +1,18 @@
+CLASS zthac_cl_role_create DEFINITION
+  PUBLIC
+  FINAL
+  CREATE PUBLIC .
+
+  PUBLIC SECTION.
+  INTERFACES if_oo_adt_classrun.
+  PROTECTED SECTION.
+  PRIVATE SECTION.
+ENDCLASS.
+
+
+
+CLASS zthac_cl_role_create IMPLEMENTATION.
+METHOD if_oo_adt_classrun~main.
+
+ENDMETHOD.
+ENDCLASS.

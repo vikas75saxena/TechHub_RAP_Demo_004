@@ -1,0 +1,90 @@
+managed;
+with draft;
+
+//strict;
+
+define behavior for ZTHAC_I_CONTRACTOR alias contractor
+implementation in class ZCL_THAC_BDEF_CONTRACTOR unique
+persistent table ZTHAC_CONTR
+draft table ZTHAC_CNTR_D
+etag master ChangedAt
+lock master
+total etag LocChangedAt
+authorization master( global )
+{
+  field (readonly, numbering:managed) ContractorKey;
+  field (readonly) ContractorId;
+  field (mandatory) FirstName, LastName, ExternalId, Country;
+//  field (mandatory : create, readonly : update) Country;
+  field (readonly) Status;
+  field (features : instance) VendorId, FirstName, LastName, Country, StartDate, ExternalId, EndDate;
+  mapping for ZTHAC_CONTR
+ {
+  ContractorKey = contr_key;
+  ContractorId = contractor_id;
+  VendorId = vendor_id;
+  FirstName = first_name;
+  LastName = last_name;
+  Country = country;
+  StartDate = start_date;
+  EndDate = end_date;
+  Status = status;
+  ExternalId = external_id;
+  CreatedBy = created_by;
+  CreatedAt = created_at;
+  ChangedBy = last_changed_by;
+  ChangedAt = last_changed_at;
+  LocChangedAt = loc_last_changed_at;
+  }
+  create;
+  update;
+  delete;
+  association _attendance { create; with draft; }
+  action ( features: instance ) offboardCntr result [1] $self;
+  validation check_dates on save { field EndDate, StartDate; create; update; }
+  validation check_names on save { field FirstName, LastName; create;  }
+  determination fill_end_date on modify { field Status; create; update; }
+  determination fill_start_date on modify { create; }
+  determination fill_contractor_id on modify { create; }
+  determination fill_initial_status on modify { create; }
+  determination fill_initial_country on modify { create; }
+  draft determine action Prepare
+  {
+    validation check_dates;
+    validation check_names;
+//  determination fill_end_date;
+//  determination fill_start_date;
+//  determination fill_contractor_id;
+//  determination fill_initial_status;
+  }
+}
+
+define behavior for ZTHAC_I_ATTENDANCE alias attendance
+implementation in class ZCL_THAC_BDEF_ATTENDANCE unique
+persistent table ZTHAC_ATTEND
+draft table ZTHAC_ATTEND_D
+lock dependent by _contractor
+authorization dependent by _contractor
+etag master ChangedAt
+{
+  field (readonly, numbering : managed ) AttendanceKey;
+  mapping for ZTHAC_ATTEND
+  {
+  AttendanceKey = attendance_key;
+  ContractorKey = contractor_key;
+  EntryDate = entry_date;
+  TimeIn = time_in;
+  TimeOut = time_out;
+  CreatedBy = created_by;
+  CreatedAt = created_at;
+  ChangedBy = last_changed_by;
+  ChangedAt = last_changed_at;
+  }
+  update;
+  delete;
+  field ( readonly ) ContractorKey;
+  association _contractor { with draft; }
+  validation check_entry_date on save { field EntryDate; create; update; }
+  validation check_in_out_time on save { field TimeIn, TimeOut; create; update; }
+  determination fill_initial_date_time on modify { create; }
+  }

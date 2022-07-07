@@ -1,0 +1,23 @@
+projection;
+use draft;
+//strict; //Comment this line in to enable strict mode. The strict mode is prerequisite to be future proof regarding syntax and to be able to release your BO.
+
+define behavior for ZTHAC_C_CONTRACTOR alias Contractor
+use etag
+{
+  use create;
+  use update;
+  use delete;
+  use action offboardCntr;
+
+  use association _attendance { create; with draft; }
+}
+
+define behavior for ZTHAC_C_ATTENDANCE alias Attendance
+use etag
+{
+  use update;
+  use delete;
+
+  use association _contractor { with draft; }
+}
