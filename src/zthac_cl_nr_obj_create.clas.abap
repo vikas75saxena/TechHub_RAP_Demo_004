@@ -29,7 +29,7 @@ CLASS zthac_cl_nr_obj_create IMPLEMENTATION.
         cl_numberrange_objects=>create(
           EXPORTING
             attributes = VALUE #( object     = lv_object
-                                  domlen     = 'ZOBJECT_ID'
+                                  domlen     = 'ZTHAC_OBJECT_ID'
                                   percentage = 5
                                   buffer     = abap_true
                                   noivbuffer = 10

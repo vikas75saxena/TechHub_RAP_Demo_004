@@ -78,7 +78,7 @@ define root view entity ZTHAC_C_CONTRACTOR
       [
        {
          entity: { element: 'status',
-                   name: 'ZDEMO_VH_STATUS' },
+                   name: 'ZTHAC_VH_STATUS' },
                    additionalBinding: [ { element: 'status_text'} ]
        }
       ]

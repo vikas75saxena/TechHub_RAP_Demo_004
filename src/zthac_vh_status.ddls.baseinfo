@@ -3,7 +3,7 @@
 {
 "FROM":
 [
-"ZDEMO_CTR_STATUS"
+"ZTHAC_CTR_STATUS"
 ],
 "ASSOCIATED":
 [],
