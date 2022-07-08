@@ -1,0 +1,5 @@
+@EndUserText.label: 'Test End to End Deployment'
+define service ZVIK_CONTR_SERV_DEF_END2END {
+  expose ZDEMO_C_CONTRACTOR as Contractor;
+  expose ZDEMO_C_ATTENDANCE as Attendance;
+}
